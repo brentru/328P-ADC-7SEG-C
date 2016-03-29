@@ -1,8 +1,10 @@
 // Brent Rubell and David Austin
+// Lab: ADC + 7 Segment Display + Interrupts
 
-// lib includes
+// libs
+#include <avr/interrupt.h>
 #include <avr/io.h>
-#include <avr/interrupts.h> 
+#include <util/delay.h>
 
 int main(void)
 {
@@ -18,8 +20,8 @@ int main(void)
 	*/
 
 	// i/o setup
-	DDRA=0;
-	// need more I/O setup information here
+	DDRB=0;
+	
 
 
 
@@ -40,6 +42,12 @@ int main(void)
 	return 0;
 }
 
+
+ISR(PCINT0_VECT)
+{
+	
+}
+
 // isr for 7-segment display code 
 ISR(ADC_SEG){
 	// space for changing the 7seg display to reflect
@@ -48,4 +56,9 @@ ISR(ADC_SEG){
 	unsigned char adcValue[4];
 	//put the adcvalue into the LCD
 
+}
+
+ISR(BADISR_vect)
+{
+	// handles unexpected interrupts
 }
