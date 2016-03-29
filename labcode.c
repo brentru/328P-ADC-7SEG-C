@@ -29,17 +29,6 @@ int main(void)
 
 
 	
-	// interrupt setup
-	ADCSRA |= (1<<ADEN); // ADC enabled pg 249, bottom of page
-	// 50kHz < clk freq < 200kHz (pg240)
-	ADCSRA |= (7<<ADPS0;) // prescaler w/128 division factor
-
-
-	ADMUX |= (0b01<<REFS0); // uses the AVCC voltage 
-
-	ADCSRA |= (1<<ADIE) // bit write to 1, when sreg's "i" is set, the ADC conversion complete interrupt is enabled (pg250)
-
-	sei(); // enable interrupts
 
 
 	while (1)

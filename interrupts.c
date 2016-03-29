@@ -32,25 +32,45 @@ int main(void)
 
 	};
 
-	//
+
+	// interrupt setup
+	ADCSRA |= (1<<ADEN); // ADC enabled pg 249, bottom of page
+	// 50kHz < clk freq < 200kHz (pg240)
+	ADCSRA |= (7<<ADPS0;) // prescaler w/128 division factor
+	ADMUX |= (0b01<<REFS0); // uses the AVCC voltage 
+	ADCSRA |= (1<<ADIE) // bit write to 1, when sreg's "i" is set, the ADC conversion complete interrupt is enabled (pg250)
 
 
+	// portb setup
 	DDRB0 &= ~(1<<DDB0); // clear the PB0
 	// PB0 is now an input 
-
 	PORTB |= (1<<PORTB0); // turn on pullup
 	//pb0 is now an input w/pull-up enabled
-
 	PCICR |= (1<<PCIE0); // enable PCMSK0 scan
 	PCMSK0 |= (1<<PCINT0); // trigger on state change
 
-	sei(); enable interrupts
+	sei(); // enable interrupts
+
 
 	while(1)
 	{
-		// main program
+		PINC = STUFF NEEDS TO GO HERE
+		// do nothing b/c interrupt is handling this instead
 	}	
 }
+
+uint16_t GetADC(uint8_t ADCh)
+{
+	// masking & channel select (ADCh is channel)
+	ADMUX = (ADMUX & 0b00001111) | (ADCh & 0b00001111); 
+	ADCSRA |= (1<<ADSC); 
+
+	// wait for adc conversion to finish
+	while((ADCSRA & _BV(ADSC)));
+	// return ADC result
+	return ADC;
+}
+
 int printLUT(void)
 {
 	DDRB = cathodelut[0];
@@ -59,8 +79,26 @@ int printLUT(void)
 	PORTD = binlut[0];
 }
 
-
+ISR (ADC_VECT)
+{
+	// do stuff with adc here
+}
 ISR (PCINT0_VECT)
 {
-	//
+	// 
+	if((PINB &(1<<PINB0)) == 1)
+	{
+		// low to high pin change
+	}
+	else
+	{
+		// high to low pin change
+	}
+}
+
+
+ISR(BADISR_vect)
+{
+	// handles unexpected interrupts
+	// put a breakpoint here to catch unhandled interrupts
 }
