@@ -1,0 +1,186 @@
+// Brent Rubell and David Austin
+// Lab: ADC & 7 Segment Display & Interrupts
+
+// dependencies
+#include <avr/interrupt.h>
+#include <avr/io.h>
+#include <avr/pgmspace.h>
+
+// Lookup Tables in PROGMEM
+const uint8_t cathodelut[4] PROGMEM = { 0x1,0x2,0x4,0x08};
+
+const uint8_t hexseg[15] = {
+	0X3F,
+	0X06,
+	0X5B,
+	0X4F,
+	0X66,
+	0X6D,
+	0X7D,
+	0X07,
+	0X7F,
+	0X67,
+	0X77,
+	0X7E,
+	0X39,
+	0X53,
+	0X79,
+	0X71
+};
+
+const uint8_t binlut[15] PROGMEM ={
+	0b00111111, /* 0 */
+	0b00000110, /* 1 */
+	0b01010011, /* 2 */
+	0b01001111, /* 3 */
+	0b01100110, /* 4 */
+	0b01101101, /* 5 */
+	0b01111101, /* 6 */
+	0b00000111, /* 7 */
+	0b01111111, /* 8 */
+	0b01100111, /* 9 */
+	0b01110111, /* 10 */
+	0b01111110, /* A */
+	0b00111001, /* B */
+	0b01011110, /* C */
+	0b01111001, /* D */
+	0b01110001  /* E */
+};
+
+volatile uint8_t currentDigit = 0; // counts from 0=>3, tells which cathode you're supposed to drive. grab individual decimal digits of myval based off of this.
+volatile uint8_t ranOnce = 1;
+volatile uint8_t earlyRun = 1;
+volatile uint8_t testdig = 0;
+
+volatile uint8_t diglut[4] = {};
+// lcd/adc update booleans
+volatile uint8_t segupdate = 0;
+volatile uint8_t adcupdate = 0;
+// ADC Value
+volatile uint16_t adcval;
+
+// routine to set up the ADC
+void adcinit(void)
+{
+	ADMUX |= (1<<REFS0); // uses the AVCC voltage
+	ADMUX |= (0<<MUX0);// using ADC0 & PC0
+	ADCSRA |= (1<<ADEN); // ADC enabled pg 249, bottom of page
+	// 50kHz < clk freq < 200kHz (pg240)
+	ADCSRA |= (1<<ADPS0) | (1<<ADPS1) | (1<<ADPS2); // prescaler w/128 division factor
+	ADCSRA |= (1<<ADIE); // bit write to 1, when sreg's "i" is set, the ADC conversion complete interrupt is enabled (pg250)
+}
+
+// routine to set up the timer
+void timerinit(void)
+{
+	TCCR0A |= (0b0010<<WGM00); //Puts the Timer into CTC mode
+	TCCR0B |= (0b0101<<CS00) | (0b0000<<WGM02); //Sets prescale of Timer to divide by (5) ie. 1024
+	TIMSK0 = _BV(OCIE0A); //enables the interrupt to work properly by storing a '1' in OCIE0A
+	TCNT0 = 0; //starting value for the timer
+	OCR0A = 65; //Max value for CTC to count to, CTC stops at OCR0A ie. 65 in this case, then triggers the interrupt
+}
+
+
+
+ISR(ADC_vect)
+{
+	adcval = ADC; // ADC register is ADC
+	diglut[3] = (adcval%10);
+	diglut[2] = ((adcval/10) % 10);
+	diglut[1] = ((adcval/100) % 10);
+	diglut[0] = (adcval/1000);
+}
+
+ISR(PCINT0_vect)
+{
+	if((PINB &(1<<PINB7)) != 0)
+	{
+		ADCSRA |= (1<<ADSC);
+		//adcupdate=1; // set update flag to 1 as adc is updated now
+	}
+}
+
+ISR(TIMER0_COMPA_vect) //will be called when OCR0A is equal to TCNT0
+{
+	if(earlyRun ==1)
+	{
+		earlyRun =0;
+		currentDigit = 0;
+	}
+	
+	DDRB = (0b0000>>DDB3);
+	PORTB = (0b0000>>PORTB3);
+	DDRD = (0b00000000<<DDD0);
+	PORTD = (0b00000000<<PORTD0);
+	
+	testdig = diglut[currentDigit];
+	//cathode;
+	DDRB = (1<<currentDigit);
+	PORTB = (1<<currentDigit);
+	DDRD =  (hexseg[testdig]);
+	PORTD =  (hexseg[testdig]);
+	currentDigit++;
+	
+	if(currentDigit==4)
+	{
+
+		currentDigit=0;
+	}
+	//if(ranOnce==1)
+	//{
+	//	ranOnce = 0;
+	//	currentDigit = 0;
+	//}
+	//segupdate=0;
+	//adcupdate = 0;
+}
+
+ISR(BADISR_vect)
+{
+	// handles unexpected interrupts
+	// put a breakpoint here to catch unhandled interrupts
+}
+
+
+int main(void)
+{
+
+	// 7-seg code inits
+	//int printnum = 4; // qty of #'s on 7seg
+	
+	
+	TCCR0A |= (0b0010<<WGM00); //Puts the Timer into CTC mode
+	TCCR0B |= (0b0101<<CS00) | (0b0000<<WGM02); //Sets prescale of Timer to divide by (5) ie. 1024
+	TIMSK0 = _BV(OCIE0A); //enables the interrupt to work properly by storing a '1' in OCIE0A
+	TCNT0 = 0; //starting value for the timer
+	OCR0A = 65; //Max value for CTC to count to, CTC stops at OCR0A ie. 65 in this case, then triggers the interrupt
+	
+	
+	ADMUX |= (1<<REFS0); // uses the AVCC voltage
+	ADMUX |= (0<<MUX0);// using ADC0 & PC0
+	ADCSRA |= (1<<ADEN); // ADC enabled pg 249, bottom of page
+	// 50kHz < clk freq < 200kHz (pg240)
+	ADCSRA |= (1<<ADPS0) | (1<<ADPS1) | (1<<ADPS2); // prescaler w/128 division factor
+	ADCSRA |= (1<<ADIE); // bit write to 1, when sreg's "i" is set, the ADC conversion complete interrupt is enabled (pg250)
+
+	
+	PORTB |= (1<<PORTB7); // turn on pullup
+	PCICR |= (1<<PCIE0); // enable PCMSK0 scan
+	PCMSK0 |= (1<<PCINT7); // trigger on state change
+	
+	// led code
+	DDRB =  (0b11111<<DDB0);
+	PORTB = (0b11111<<DDB0);;
+	DDRD =  0xFF;
+	PORTD = 0xFF;
+
+
+	sei(); // enable interrupts
+	currentDigit = 0;
+	while(1)
+	{
+		PINC ^= _BV(1); // toggle the pinc
+		
+
+	}
+}
